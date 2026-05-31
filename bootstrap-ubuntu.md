@@ -75,6 +75,7 @@ A `PACKAGES` tömb tartalma (egy `apt-get install -y` hívásban):
 | `apt-transport-https` | HTTPS apt repók |
 | `locales` | UTF-8 locale generálásához (3. lépés) |
 | `sqlite3` | a dream-engine és kanban-audit taskok parancssori sqlite3-at hívnak |
+| `samba`, `samba-common-bin` | hálózati fájlmegosztás (a share-t a 2. fázis állítja be); `samba-common-bin` adja az `smbpasswd`/`testparm` eszközöket |
 
 > **Bővítés:** új rendszer-csomagot ide, a `PACKAGES` tömbbe vegyél fel.
 
@@ -131,6 +132,7 @@ A `PACKAGES` tömb tartalma (egy `apt-get install -y` hívásban):
 - Nem csinál `loginctl enable-linger`-t (a Marveen `install.sh` elintézi).
 - Nem telepíti/indítja az `openssh-server`-t (feltételezi, hogy fut — bővíthető).
 - Nem telepít Tailscale-t.
+- A `samba` csomagot telepíti, de a **share-t és a samba-usert NEM** itt állítja be — azt a 2. fázis csinálja (akkor már létezik a felhasználó és a `~/marveen` mappa).
 - Nem klónozza a Marveent és nem futtatja az installert (az a 2. fázis).
 - Nem kezeli a Claude OAuth tokent (az a Marveen `install.sh` dolga).
 
