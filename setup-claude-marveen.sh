@@ -35,7 +35,7 @@ BASHRC="$HOME/.bashrc"
 [ -f "$BASHRC" ] || touch "$BASHRC"
 
 echo
-echo -e "${BOLD}=== 1/4  Claude Code telepitese ===${NC}"
+echo -e "${BOLD}=== 1/5  Claude Code telepitese ===${NC}"
 # A ~/.local/bin az aktualis sessionre is keruljon a PATH-ra
 export PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"
 if command -v claude >/dev/null 2>&1; then
@@ -52,7 +52,7 @@ else
 fi
 
 echo
-echo -e "${BOLD}=== 2/4  'claudegod' alias + belepesi emlekezteto ===${NC}"
+echo -e "${BOLD}=== 2/5  'claudegod' alias + belepesi emlekezteto ===${NC}"
 # Idempotens: marker-blokk a .bashrc-ben; ha mar ott van, nem duplikaljuk.
 if grep -q "# >>> claudegod >>>" "$BASHRC"; then
   ok "A claudegod blokk mar benne van a .bashrc-ben (kihagyva)."
@@ -73,11 +73,11 @@ BASHRC_BLOCK
 fi
 
 echo
-echo -e "${BOLD}=== 3/4  Belepesi uzenet probaja ===${NC}"
+echo -e "${BOLD}=== 3/5  Belepesi uzenet probaja ===${NC}"
 echo -e "  💪 ${YELLOW}claudegod${NC} = a mindenhato Claude (${DIM}--dangerously-skip-permissions${NC}). Csak ird be: ${BOLD}claudegod${NC}"
 
 echo
-echo -e "${BOLD}=== 4/4  Marveen telepitese ===${NC}"
+echo -e "${BOLD}=== 4/5  Marveen telepitese ===${NC}"
 info "A Marveen telepitojehez bejelentkezett Claude kell."
 info "Ha headless gepen vagy: a sajat (boengeszos) geped futtasd 'claude setup-token',"
 info "majd a kapott tokent itt: export CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...  (ANTHROPIC_API_KEY NELKUL)"
@@ -101,6 +101,78 @@ else
   info "Rendben, a Marveent kesobb is telepitheted:"
   info "  git clone https://github.com/Szotasz/marveen.git ~/marveen && cd ~/marveen && ./install.sh"
 fi
+
+echo
+echo -e "${BOLD}=== 5/5  Samba megosztas ===${NC}"
+# Cel: Windowsrol/halozatrol fajlokat lehessen rakosgatni az agenteknek
+# (a Marveen az agenteket a ~/marveen/agents/ alatt tarolja).
+SHARE_NAME="marveen"
+SHARE_PATH="$HOME/marveen"
+SMB_CONF="/etc/samba/smb.conf"
+
+# A samba csomagot az 1. fazis (bootstrap) telepiti; ha megsem lenne fent, potoljuk.
+if ! command -v testparm >/dev/null 2>&1; then
+  info "Samba telepitese (potlas)..."
+  sudo apt-get update -qq
+  sudo apt-get install -y samba samba-common-bin
+fi
+
+# A megosztott mappa biztositasa (ha a Marveent nem telepitetted, akkor is letezzen)
+mkdir -p "$SHARE_PATH"
+
+# --- Samba felhasznalo (a sajat Linux user) + SMB jelszo ---
+echo -e "  SMB (halozati megosztas) jelszo a(z) '${USER}' felhasznalohoz."
+info "Ez a Samba-jelszo (errol csatlakozol Windowsrol), NEM a Linux login jelszo."
+while true; do
+  read -rsp "  SMB jelszo: " SMBPW1; echo
+  if [ -z "$SMBPW1" ]; then warn "Nem lehet ures."; continue; fi
+  read -rsp "  SMB jelszo megegyszer: " SMBPW2; echo
+  if [ "$SMBPW1" != "$SMBPW2" ]; then warn "A ket jelszo nem egyezik."; continue; fi
+  break
+done
+printf '%s\n%s\n' "$SMBPW1" "$SMBPW2" | sudo smbpasswd -s -a "$USER"
+sudo smbpasswd -e "$USER" >/dev/null 2>&1 || true
+unset SMBPW1 SMBPW2
+ok "Samba felhasznalo beallitva: $USER"
+
+# --- Share blokk az smb.conf-ba (idempotens, marker-rel) ---
+if sudo grep -q "# >>> ${SHARE_NAME} share >>>" "$SMB_CONF" 2>/dev/null; then
+  ok "A(z) '${SHARE_NAME}' megosztas mar szerepel az smb.conf-ban (kihagyva)."
+else
+  sudo tee -a "$SMB_CONF" >/dev/null <<EOF
+
+# >>> ${SHARE_NAME} share >>>
+[${SHARE_NAME}]
+   comment = Marveen agents files
+   path = ${SHARE_PATH}
+   browseable = yes
+   read only = no
+   writable = yes
+   valid users = ${USER}
+   force user = ${USER}
+   force group = ${USER}
+   create mask = 0664
+   directory mask = 0775
+# <<< ${SHARE_NAME} share <<<
+EOF
+  ok "Megosztas hozzaadva az smb.conf-hoz: [${SHARE_NAME}] -> ${SHARE_PATH}"
+fi
+
+# --- Config ellenorzes + service ujraindítas ---
+if sudo testparm -s >/dev/null 2>&1; then
+  sudo systemctl enable smbd >/dev/null 2>&1 || true
+  sudo systemctl restart smbd
+  ok "Samba (smbd) ujraindítva es engedelyezve."
+else
+  err "Az smb.conf ervenytelen (testparm). Ellenorizd kezzel: sudo testparm"
+fi
+
+# --- Eleresi info ---
+SMB_IP="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')"
+[ -z "$SMB_IP" ] && SMB_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+[ -z "$SMB_IP" ] && SMB_IP="<gep-ip>"
+info "Windowsrol eleres a Fajlkezelo cimsoraban:  \\\\${SMB_IP}\\${SHARE_NAME}"
+info "  (felhasznalo: ${USER}, az imenti SMB jelszoval)"
 
 echo
 echo -e "${BOLD}=== Kesz ===${NC}"
