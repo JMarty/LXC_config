@@ -51,6 +51,7 @@ PACKAGES=(
   lsb-release apt-transport-https
   locales
   sqlite3
+  samba samba-common-bin
 )
 apt-get install -y "${PACKAGES[@]}"
 ok "Csomagok telepitve: ${PACKAGES[*]}"
